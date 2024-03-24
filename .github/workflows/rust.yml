@@ -19,8 +19,8 @@ jobs:
     - name: Build
       run: |
         cd rust_euler_suite
-        cargo build --verbose
+        cargo build --verbose --workspace
     - name: Run tests
       run: |
         cd rust_euler_suite
-        cargo test --verbose
+        cargo test --verbose --workspace
