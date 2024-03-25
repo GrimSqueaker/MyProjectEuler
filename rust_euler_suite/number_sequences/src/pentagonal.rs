@@ -1,5 +1,15 @@
 use std::fmt;
 
+// Pentagonal $P_n=n(3n - 1)/2$
+//            $1, 5, 12, 22, 35, \dots$
+
+// P_n - P_(n-1)
+//   = n(3n-1)/2 - (n-1)(3(n-1)-1)/2
+//   = ( 3n^2-n - (n-1)(3n-4) )/2
+//   = ( 3n^2-n - (3n^2-4n-3n+4) )/2
+//   = ( 6n - 4 )/2
+//   = 3n - 2
+
 #[derive(PartialEq)]
 #[derive(Debug, Clone, Copy)]
 pub struct Pentagonal {
