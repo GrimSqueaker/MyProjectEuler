@@ -11,7 +11,7 @@ fn main() {
     copy_to_output("data/p042_words.txt", &env::var("PROFILE").unwrap()).expect("Could not copy");  
 }
 
-fn copy_to_output(path: &str, build_type: &str) -> Result<()> {
+fn copy_to_output(path: &str, _build_type: &str) -> Result<()> {
     let mut out_path = PathBuf::new();
     let mut cargo_target = String::new();
     match get_cargo_target_dir() {
