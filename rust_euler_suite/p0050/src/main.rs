@@ -12,7 +12,7 @@
 // Which prime, below one-million, can be written as the sum of the most consecutive primes?
 
 
-use primes::{Sieve, PrimeSet, is_prime};
+use primes::{Sieve, PrimeSet, PrimeSetIter};
 
 fn main() {
     let (prime, summands) = find_longest_prime_sum_in_range(999999);
@@ -25,9 +25,11 @@ fn find_longest_prime_sum_in_range(upper_limit: u64) -> (u64, Vec<u64>) {
     let mut summands = vec![2u64];
 
     let mut pset = Sieve::new();
+    pset.find(upper_limit);
+    let mut psetclone = pset.clone();
 
     for target in pset.iter().take_while(|n| *n <= upper_limit) {
-        let new_longest_summands = find_longest_prime_sum_for_prime(target);
+        let new_longest_summands = find_longest_prime_sum_for_prime(target, &mut psetclone);
 
         if new_longest_summands.len() > summands.len() {
             prime = target;
@@ -39,13 +41,11 @@ fn find_longest_prime_sum_in_range(upper_limit: u64) -> (u64, Vec<u64>) {
     (prime, summands)
 }
 
-fn find_longest_prime_sum_for_prime(target: u64) -> Vec<u64> {
-    // TODO: needs optmization - share Sieve?
-
+fn find_longest_prime_sum_for_prime(target: u64, pset: &mut Sieve) -> Vec<u64> {
     let mut summands = vec![];
     let mut sum = 0u64;
 
-    let mut pset = Sieve::new();
+    //let mut pset = Sieve::new();
 
     for prime in pset.iter().take_while(|n| *n <= target) {
         summands.push(prime);
