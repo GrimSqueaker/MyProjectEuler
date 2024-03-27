@@ -34,8 +34,6 @@ fn main() {
             }
         }
     }
-
-    //println!("Solution: {}", res);
 }
 
 fn is_permutation(a: u64, b: u64) -> bool {
