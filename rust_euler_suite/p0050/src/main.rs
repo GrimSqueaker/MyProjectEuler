@@ -12,7 +12,7 @@
 // Which prime, below one-million, can be written as the sum of the most consecutive primes?
 
 
-use primes::{Sieve, PrimeSet, PrimeSetIter};
+use primes::{Sieve, PrimeSet};
 
 fn main() {
     let (prime, summands) = find_longest_prime_sum_in_range(999999);
