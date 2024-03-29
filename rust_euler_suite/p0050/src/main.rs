@@ -74,7 +74,9 @@ mod tests {
 
     #[test]
     fn test_find_longest_prime_sum_for_prime() {
-        assert_eq!(find_longest_prime_sum_for_prime(41), vec![2, 3, 5, 7, 11, 13]);
+        let mut pset = Sieve::new();
+        pset.find(100);
+        assert_eq!(find_longest_prime_sum_for_prime(41, &mut pset), vec![2, 3, 5, 7, 11, 13]);
     }
 
     #[test]
