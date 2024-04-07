@@ -25,8 +25,59 @@
 
 use std::io::{BufRead, BufReader};
 use std::fs::File;
+use std::cmp::Ordering;
+use std::fmt;
 
-type CardSet = Vec<String>;
+#[derive(Debug, Clone, Copy)]
+struct Card {
+    pub value: char,
+    pub suit: char,
+}
+impl Card {
+    pub fn new(value: char, suit: char) -> Self {
+        Card {
+            value: value,
+            suit: suit
+        }
+    }
+}
+impl fmt::Display for Card {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}{}", self.value, self.suit)
+    }
+}
+type CardSet = Vec<Card>;
+
+impl PartialOrd for Card {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Card {
+    fn cmp(&self, other: &Self) -> Ordering {
+        let valself = get_value_of_card(self);
+        let valother = get_value_of_card(other);
+        if valself < valother {
+            Ordering::Less
+        }
+        else if valself == valother {
+            Ordering::Equal
+        }
+        else {
+            Ordering::Greater
+        }
+    }
+}
+impl Eq for Card { }
+impl PartialEq for Card {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+macro_rules! to_card {
+    ($x:expr) => (Card::new($x.chars().nth(0).unwrap(), $x.chars().nth(1).unwrap()));
+}
 
 //const SUITS: Vec<char> = vec!['H', 'C', 'S', 'D'];
 //const VALUES: Vec<char> = vec!['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
@@ -72,13 +123,13 @@ fn split_line_to_player_cards(line: String) -> (CardSet, CardSet) {
     let player1: CardSet = line
         .split_whitespace()
         .take(5)
-        .map(String::from)
+        .map(|x| {Card::new(x.chars().nth(0).unwrap(), x.chars().nth(1).unwrap())} )
         .collect();
     let mut player2: CardSet = line
         .split_whitespace()
         .rev()
         .take(5)
-        .map(String::from)
+        .map(|x| {Card::new(x.chars().nth(0).unwrap(), x.chars().nth(1).unwrap())} )
         .collect();
     player2.reverse();
 
@@ -92,65 +143,176 @@ fn check_player1_win(cards_player1: CardSet, cards_player2: CardSet) -> bool {
     //  3. 3 of a kind + 2 of a kind (full house), value of 3, value of 2
     //  4. flush (all same suit)
     //  5. straight (all consecutive values)
-    //  6. 3 of a kind, value fo the 3, values of other cards
+    //  6. 3 of a kind, value for the 3, highest values of other cards
     //  7. two pairs, value of pairs, value of other card
     //  8. one pair, value of pair, values of other cards
     //  9. highest card
 
-    //  1. straight flush, highest card in flush (incl royal flush)
+    player_win_lose_royal_flush(&cards_player1, &cards_player2)
+        .or_else(|| {player_win_lose_straight_flush(&cards_player1, &cards_player2)} )
+        .or_else(|| {player_win_lose_four_of_a_kind(&cards_player1, &cards_player2)} )
+        .or_else(|| {player_win_lose_full_house(&cards_player1, &cards_player2)} )
+        .or_else(|| {player_win_lose_flush(&cards_player1, &cards_player2)} )
+        .or_else(|| {player_win_lose_straight(&cards_player1, &cards_player2)} )
+        .unwrap_or(false)
+}
+
+
+// Checks for ranked hands
+
+fn player_win_lose_royal_flush(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    //  1.1. royal flush
     let rf1 = is_royal_flush(&cards_player1);
     let rf2 = is_royal_flush(&cards_player2);
 
     if rf1 && !rf2 {
-        return true;
+        Some(true)
     }
     else if rf2 {
-        return false;
+        Some(false)
     }
+    else {
+        None
+    }
+}
 
+fn player_win_lose_straight_flush(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    //  1.2. straight flush, highest card in flush
     let sf1 = is_straight_flush(&cards_player1);
     let sf2 = is_straight_flush(&cards_player2);
 
     if sf1 && !sf2 {
-        return true;
+        Some(true)
     }
     else if !sf1 && sf2 {
-        return false;
+        Some(false)
     }
     else if sf1 && sf2 {
-        return find_highest_value_card(&cards_player1).1 > find_highest_value_card(&cards_player2).1;
+        Some(find_highest_value_card(&cards_player1).1 > find_highest_value_card(&cards_player2).1)
     }
+    else {
+        None
+    }
+}
 
+fn player_win_lose_four_of_a_kind(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
     //  2. four of a kind, value of the four, value of other card
     let fok1 = find_n_of_a_kind(4, &cards_player1);
     let fok2 = find_n_of_a_kind(4, &cards_player2);
 
     if fok1.is_some() && fok2.is_none() {
-        return true;
+        Some(true)
     }
     else if fok1.is_none() && fok2.is_some() {
-        return false;
+        Some(false)
     }
     else if fok1.is_some() && fok2.is_some() {
         let hk1 = find_highest_value_card(&fok1.clone().unwrap().0).1;
         let hk2 = find_highest_value_card(&fok2.clone().unwrap().0).1;
+
         if hk1 == hk2 {
             let rest_hk1 = find_highest_value_card(&fok1.unwrap().1).1;
             let rest_hk2 = find_highest_value_card(&fok2.unwrap().1).1;
-            return rest_hk1 > rest_hk2;
+            Some(rest_hk1 > rest_hk2)
         }
         else {
-            return hk1 > hk2;
+            Some(hk1 > hk2)
         }
     }
-
-    false
+    else {
+        None
+    }
 }
+
+fn player_win_lose_full_house(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    //  3. 3 of a kind + 2 of a kind (full house), value of 3, value of 2
+    let fh1 = get_full_house(&cards_player1);
+    let fh2 = get_full_house(&cards_player2);
+
+    if fh1.is_some() && fh2.is_none() {
+        Some(true)
+    }
+    else if fh1.is_none() && fh2.is_some() {
+        Some(false)
+    }
+    else if fh1.is_some() && fh2.is_some() {
+        let fh1u = fh1.unwrap();
+        let fh2u = fh2.unwrap();
+        let (hk13, hk12) = (get_value_of_card(fh1u.0.iter().next().unwrap()), get_value_of_card(fh1u.1.iter().next().unwrap()));
+        let (hk23, hk22) = (get_value_of_card(fh2u.0.iter().next().unwrap()), get_value_of_card(fh2u.1.iter().next().unwrap()));
+
+        if hk13 > hk23 {
+            Some(true)
+        }
+        else if (hk13 == hk23) && (hk12 > hk22) {
+            Some(true)
+        }
+        else {
+            Some(false)
+        }
+    }
+    else {
+        None
+    }
+}
+
+fn player_win_lose_flush(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    //  4. flush (all same suit)
+    let flu1 = get_flush(&cards_player1);
+    let flu2 = get_flush(&cards_player2);
+
+    if flu1.is_some() && flu2.is_none() {
+        Some(true)
+    }
+    else if flu1.is_none() && flu2.is_some() {
+        Some(false)
+    }
+    else if flu1.is_some() && flu2.is_some() {
+        for i in (0..5).rev() {
+            let c1 = flu1.as_ref().unwrap().iter().nth(i).unwrap();
+            let c2 = flu2.as_ref().unwrap().iter().nth(i).unwrap();
+            if get_value_of_card(c1) < get_value_of_card(c2) {
+                return Some(false)
+            }
+            else if get_value_of_card(c1) > get_value_of_card(c2) {
+                return Some(true)
+            }
+        }
+        Some(false)
+    }
+    else {
+        None
+    }
+}
+
+fn player_win_lose_straight(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    //  5. straight (all consecutive values)
+    let str1 = is_straight(cards_player1);
+    let str2 = is_straight(cards_player2);
+
+    if str1 && !str2 {
+        Some(true)
+    }
+    else if !str1 && str2 {
+        Some(false)
+    }
+    else if str1 && str2 {
+        let hkv1 = find_highest_value_card(cards_player1).1;
+        let hkv2 = find_highest_value_card(cards_player2).1;
+
+        Some(hkv1 > hkv2)
+    }
+    else {
+        None
+    }
+}
+
+// Helper functions
 
 fn is_royal_flush(cards: &CardSet) -> bool {
     return is_straight(&cards) 
         && find_5_same_suit(&cards).is_some() 
-        && 'A' == find_highest_value_card(&cards).0.chars().next().unwrap();
+        && 'A' == find_highest_value_card(&cards).0.value;
 }
 
 fn is_straight_flush(cards: &CardSet) -> bool {
@@ -160,7 +322,7 @@ fn is_straight_flush(cards: &CardSet) -> bool {
 fn is_straight(cards: &CardSet) -> bool {
     let mut values: Vec<char> = cards
         .iter()
-        .fold("".to_string(), |mut acc, b| {acc.push_str(&b.chars().nth(0).unwrap().to_string()); acc})
+        .fold("".to_string(), |mut acc, b| {acc.push_str(&b.value.to_string()); acc})
         .chars()
         .collect();
     values.sort_by_key(|k| VALUES.chars().position(|c| c == *k).unwrap());
@@ -176,7 +338,7 @@ fn find_5_same_suit(cards: &CardSet) -> Option<CardSet> {
     for suit in SUITS.chars() {
         let suit_cards: CardSet = cards
             .iter()
-            .filter(|c| c.chars().nth(1).unwrap() == suit)
+            .filter(|c| c.suit == suit)
             .cloned()
             .collect();
         if suit_cards.len() == 5 {
@@ -187,8 +349,8 @@ fn find_5_same_suit(cards: &CardSet) -> Option<CardSet> {
     None
 }
 
-fn find_highest_value_card(cards: &CardSet) -> (String, usize) {
-    let mut highest_card: &String = &cards[0];
+fn find_highest_value_card(cards: &CardSet) -> (Card, usize) {
+    let mut highest_card: &Card = &cards[0];
     let mut highest_value: usize = 0;
 
     for card in cards {
@@ -202,9 +364,8 @@ fn find_highest_value_card(cards: &CardSet) -> (String, usize) {
     (highest_card.clone(), highest_value)
 }
 
-fn get_value_of_card(card: &str) -> usize {
-    let value = card.chars().next().unwrap();
-    return VALUES.chars().position(|x| x == value).unwrap();
+fn get_value_of_card(card: &Card) -> usize {
+    return VALUES.chars().position(|x| x == card.value).unwrap();
 }
 
 fn find_n_of_a_kind(n: usize, cards: &CardSet) -> Option<(CardSet, CardSet)> {
@@ -214,7 +375,7 @@ fn find_n_of_a_kind(n: usize, cards: &CardSet) -> Option<(CardSet, CardSet)> {
         let cards_by_val = cards.iter()
             .fold(
                 init_found_and_rest.clone(),
-                |mut acc, card| {if val == card.chars().next().unwrap() {acc.0.push(card.clone())} else {acc.1.push(card.clone())} acc}
+                |mut acc, card| {if val == card.value {acc.0.push(card.clone())} else {acc.1.push(card.clone())} acc}
             );
             
         if cards_by_val.0.len() >= n {
@@ -225,9 +386,33 @@ fn find_n_of_a_kind(n: usize, cards: &CardSet) -> Option<(CardSet, CardSet)> {
     None
 }
 
+fn get_full_house(cards: &CardSet) -> Option<(CardSet, CardSet)> {
+    let three_of_a_kind = find_n_of_a_kind(3, cards);
+    if three_of_a_kind.is_some() {
+        let pair = find_n_of_a_kind(2, &three_of_a_kind.clone().unwrap().1);
+        if pair.is_some() {
+            return three_of_a_kind;
+        }
+    }
+
+    None
+}
+
+fn get_flush(cards: &CardSet) -> Option<(CardSet)> {
+    let same_suit = find_5_same_suit(cards);
+
+    if same_suit.is_some() {
+        let mut flush = same_suit.unwrap();
+        flush.sort();
+        return Some(flush);
+    }
+
+    None
+}
+
 #[cfg(test)]
-macro_rules! vec_of_strings {
-    ($($x:expr),*) => (vec![$($x.to_string()),*]);
+macro_rules! vec_of_cards {
+    ($($x:expr),*) => (vec![$(Card::new($x.chars().nth(0).unwrap(), $x.chars().nth(1).unwrap())),*]);
 }
 
 #[cfg(test)]
@@ -237,101 +422,132 @@ mod tests {
     #[test]
     fn test_split_line_to_player_cards() {
         assert_eq!(split_line_to_player_cards("8C TS KC 9H 4S 7D 2S 5D 3S AC".to_string()), 
-            (vec_of_strings!["8C", "TS", "KC", "9H", "4S"],
-             vec_of_strings!["7D", "2S", "5D", "3S", "AC"]));
+            //(vec_of_cards!["8C", "TS", "KC", "9H", "4S"],
+            (vec_of_cards!["8C", "TS", "KC", "9H", "4S"],
+             vec_of_cards!["7D", "2S", "5D", "3S", "AC"]));
     }
 
     #[test]
     fn test_check_player1_win() {
-        assert_eq!(check_player1_win(vec_of_strings!["8C", "TS", "KC", "9H", "4S"], vec_of_strings!["8S", "TC", "KS", "9S", "AC"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["8C", "TS", "KC", "9H", "4S"], vec_of_cards!["8S", "TC", "KS", "9S", "AC"]), false);
 
         // trivial wins
         // Royal Flush
-        assert_eq!(check_player1_win(vec_of_strings!["KC", "TC", "JC", "QC", "AC"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["KC", "TC", "JC", "QC", "AC"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
         // Straight Flush
-        assert_eq!(check_player1_win(vec_of_strings!["3C", "4C", "5C", "6C", "7C"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "4C", "5C", "6C", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
         // // Four of a Kind
-        assert_eq!(check_player1_win(vec_of_strings!["3C", "3H", "3S", "3D", "7C"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
-        assert_eq!(check_player1_win(vec_of_strings!["3C", "3H", "3S", "3D", "7C"], vec_of_strings!["8D", "8S", "8C", "8H", "4S"]), false);
-        assert_eq!(check_player1_win(vec_of_strings!["AC", "AH", "AS", "AD", "7C"], vec_of_strings!["8D", "8S", "8C", "8H", "4S"]), true);
-        assert_eq!(check_player1_win(vec_of_strings!["8C", "8H", "8S", "8D", "7C"], vec_of_strings!["8D", "8S", "8C", "8H", "4S"]), true);
-        assert_eq!(check_player1_win(vec_of_strings!["8C", "8H", "8S", "8D", "4C"], vec_of_strings!["8D", "8S", "8C", "8H", "4S"]), false);
-        assert_eq!(check_player1_win(vec_of_strings!["8C", "8H", "8S", "8D", "2C"], vec_of_strings!["8D", "8S", "8C", "8H", "4S"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "3H", "3S", "3D", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "3H", "3S", "3D", "7C"], vec_of_cards!["8D", "8S", "8C", "8H", "4S"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["AC", "AH", "AS", "AD", "7C"], vec_of_cards!["8D", "8S", "8C", "8H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["8C", "8H", "8S", "8D", "7C"], vec_of_cards!["8D", "8S", "8C", "8H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["8C", "8H", "8S", "8D", "4C"], vec_of_cards!["8D", "8S", "8C", "8H", "4S"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["8C", "8H", "8S", "8D", "2C"], vec_of_cards!["8D", "8S", "8C", "8H", "4S"]), false);
         // // Full House
-        // assert_eq!(check_player1_win(vec_of_strings!["3C", "3H", "3S", "7D", "7C"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "3H", "3S", "7D", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "3H", "3S", "7D", "7C"], vec_of_cards!["4C", "4S", "4D", "9H", "9S"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["8C", "TS", "KC", "9H", "4S"], vec_of_cards!["3C", "3H", "3S", "7D", "7C"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "3H", "3S", "7D", "7C"], vec_of_cards!["3C", "3H", "3S", "7D", "7C"]), false);
         // // Flush
-        // assert_eq!(check_player1_win(vec_of_strings!["2C", "3C", "5C", "7C", "AC"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["2C", "3C", "5C", "7C", "AC"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["2C", "3C", "5C", "7C", "TC"], vec_of_cards!["2D", "3D", "AD", "7D", "TD"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["2C", "3C", "5C", "7C", "TC"], vec_of_cards!["3D", "5D", "7D", "TD", "2D"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["2C", "3C", "5C", "7C", "TC"], vec_of_cards!["2D", "3D", "4D", "9D", "TD"]), false);
         // // Straight
-        // assert_eq!(check_player1_win(vec_of_strings!["3C", "4H", "5S", "6D", "7C"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["2C", "3D", "5C", "6H", "5C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["2C", "3D", "5C", "6H", "5C"], vec_of_cards!["5C", "6S", "7C", "8H", "9S"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["2C", "3D", "5C", "6H", "5C"], vec_of_cards!["8C", "8H", "8S", "8D", "7C"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["6H", "7H", "TH", "9D", "8S"], vec_of_cards!["2C", "3D", "5H", "6H", "5C"]), true);
         // // Three of a Kind
-        // assert_eq!(check_player1_win(vec_of_strings!["QC", "QH", "5S", "QD", "7C"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        // assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "QD", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
         // // Two Pairs
-        // assert_eq!(check_player1_win(vec_of_strings!["QC", "QH", "5S", "5D", "7C"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        // assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "5D", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
         // // One Pair
-        // assert_eq!(check_player1_win(vec_of_strings!["QC", "QH", "5S", "AD", "7C"], vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), true);
+        // assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "AD", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
         // // High Card
-        // assert_eq!(check_player1_win(vec_of_strings!["QC", "3H", "5S", "2D", "7C"], vec_of_strings!["8C", "TS", "4C", "9H", "2S"]), true);
+        // assert_eq!(check_player1_win(vec_of_cards!["QC", "3H", "5S", "2D", "7C"], vec_of_cards!["8C", "TS", "4C", "9H", "2S"]), true);
 
         // // wins
-        // assert_eq!(check_player1_win(vec_of_strings!["QC", "QH", "5S", "AD", "7C"], vec_of_strings!["QC", "4S", "KC", "9H", "QS"]), true);
+        // assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "AD", "7C"], vec_of_cards!["QC", "4S", "KC", "9H", "QS"]), true);
 
         // loses
     }
 
     #[test]
     fn test_is_royal_flush() {
-        assert_eq!(is_royal_flush(&vec_of_strings!["8C", "TS", "KC", "9H", "4S"]), false);
-        assert_eq!(is_royal_flush(&vec_of_strings!["KC", "TC", "JC", "QC", "AC"]), true);
-        assert_eq!(is_royal_flush(&vec_of_strings!["7C", "6C", "5C", "4C", "8C"]), false);
+        assert_eq!(is_royal_flush(&vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), false);
+        assert_eq!(is_royal_flush(&vec_of_cards!["KC", "TC", "JC", "QC", "AC"]), true);
+        assert_eq!(is_royal_flush(&vec_of_cards!["7C", "6C", "5C", "4C", "8C"]), false);
     }
 
     #[test]
     fn test_is_straight_flush() {
-        assert_eq!(is_straight_flush(&vec_of_strings!["7C", "6C", "5C", "4C", "8C"]), true);
-        assert_eq!(is_straight_flush(&vec_of_strings!["7D", "6C", "5C", "4C", "8C"]), false);
+        assert_eq!(is_straight_flush(&vec_of_cards!["7C", "6C", "5C", "4C", "8C"]), true);
+        assert_eq!(is_straight_flush(&vec_of_cards!["7D", "6C", "5C", "4C", "8C"]), false);
     }
 
     #[test]
     fn test_is_straight() {
-        assert_eq!(is_straight(&vec_of_strings!["KC", "TC", "JC", "QC", "AC"]), true);
-        assert_eq!(is_straight(&vec_of_strings!["2C", "3C", "4C", "5C", "6C"]), true);
-        assert_eq!(is_straight(&vec_of_strings!["7C", "6C", "5C", "4C", "8C"]), true);
-        assert_eq!(is_straight(&vec_of_strings!["7C", "6C", "2C", "4C", "8C"]), false);
+        assert_eq!(is_straight(&vec_of_cards!["KC", "TC", "JC", "QC", "AC"]), true);
+        assert_eq!(is_straight(&vec_of_cards!["2C", "3C", "4C", "5C", "6C"]), true);
+        assert_eq!(is_straight(&vec_of_cards!["7C", "6C", "5C", "4C", "8C"]), true);
+        assert_eq!(is_straight(&vec_of_cards!["7C", "6C", "2C", "4C", "8C"]), false);
+        assert_eq!(is_straight(&vec_of_cards!["6H", "7H", "TH", "9D", "8S"]), true);
     }
 
     #[test]
     fn test_find_5_same_suit() {
-        assert!(find_5_same_suit(&vec_of_strings!["8C", "TS", "KC", "9H", "4S"]).is_none());
-        assert!(find_5_same_suit(&vec_of_strings!["8C", "TC", "KC", "9C", "4C"]).is_some());
-        assert!(find_5_same_suit(&vec_of_strings!["7D", "6C", "5C", "4C", "8C"]).is_none());
+        assert!(find_5_same_suit(&vec_of_cards!["8C", "TS", "KC", "9H", "4S"]).is_none());
+        assert!(find_5_same_suit(&vec_of_cards!["8C", "TC", "KC", "9C", "4C"]).is_some());
+        assert!(find_5_same_suit(&vec_of_cards!["7D", "6C", "5C", "4C", "8C"]).is_none());
     }
 
     #[test]
     fn test_find_highest_value_card() {
-        assert_eq!(find_highest_value_card(&vec_of_strings!["8C", "TC", "KC", "9C", "4C"]), ("KC".to_string(), get_value_of_card("KC")));
-        assert_eq!(find_highest_value_card(&vec_of_strings!["8C", "AS", "KC", "9C", "4C"]), ("AS".to_string(), get_value_of_card("AS")));
-        assert_eq!(find_highest_value_card(&vec_of_strings!["2C", "3S", "2S", "3C", "4C"]), ("4C".to_string(), get_value_of_card("4C")));
+        assert_eq!(find_highest_value_card(&vec_of_cards!["8C", "TC", "KC", "9C", "4C"]), (to_card!["KC"], get_value_of_card(&to_card!["KC"])));
+        assert_eq!(find_highest_value_card(&vec_of_cards!["8C", "AS", "KC", "9C", "4C"]), (to_card!["AS"], get_value_of_card(&to_card!["AS"])));
+        assert_eq!(find_highest_value_card(&vec_of_cards!["2C", "3S", "2S", "3C", "4C"]), (to_card!["4C"], get_value_of_card(&to_card!["4C"])));
     }
 
     #[test]
     fn test_get_value_of_card() {
-        assert!(get_value_of_card("8C") > get_value_of_card("2S"));
-        assert!(get_value_of_card("AD") > get_value_of_card("2S"));
-        assert!(get_value_of_card("KD") == get_value_of_card("KS"));
+        assert!(get_value_of_card(&to_card!["8C"]) > get_value_of_card(&to_card!["2S"]));
+        assert!(get_value_of_card(&to_card!["AD"]) > get_value_of_card(&to_card!["2S"]));
+        assert!(get_value_of_card(&to_card!["KD"]) == get_value_of_card(&to_card!["KS"]));
     }
 
     #[test]
     fn test_find_n_of_a_kind() {
         assert_eq!(
-            find_n_of_a_kind(4, &vec_of_strings!["8C", "8S", "8D", "9C", "8H"]), 
-            Some((vec_of_strings!["8C", "8S", "8D", "8H"], vec_of_strings!["9C"]))
+            find_n_of_a_kind(4, &vec_of_cards!["8C", "8S", "8D", "9C", "8H"]), 
+            Some((vec_of_cards!["8C", "8S", "8D", "8H"], vec_of_cards!["9C"]))
         );
         assert_eq!(
-            find_n_of_a_kind(2, &vec_of_strings!["8C", "8S", "8D", "9C", "8H"]), 
-            Some((vec_of_strings!["8C", "8S", "8D", "8H"], vec_of_strings!["9C"]))
+            find_n_of_a_kind(2, &vec_of_cards!["8C", "8S", "8D", "9C", "8H"]), 
+            Some((vec_of_cards!["8C", "8S", "8D", "8H"], vec_of_cards!["9C"]))
         );
         assert_eq!(
-            find_n_of_a_kind(4, &vec_of_strings!["8C", "2S", "8D", "9C", "8H"]), 
+            find_n_of_a_kind(4, &vec_of_cards!["8C", "2S", "8D", "9C", "8H"]), 
+            None
+        );
+    }
+
+    #[test]
+    fn test_get_full_house() {
+        assert_eq!(
+            get_full_house(&vec_of_cards!["8C", "8S", "8D", "9C", "9H"]), 
+            Some((vec_of_cards!["8C", "8S", "8D"], vec_of_cards!["9C", "9H"]))
+        );
+        assert_eq!(
+            get_full_house(&vec_of_cards!["8C", "7S", "8D", "7C", "8H"]), 
+            Some((vec_of_cards!["8C", "8D", "8H"], vec_of_cards!["7S", "7C"]))
+        );
+        assert_eq!(
+            get_full_house(&vec_of_cards!["8C", "7S", "8D", "9C", "9H"]), 
+            None
+        );
+        assert_eq!(
+            get_full_house(&vec_of_cards!["8C", "7S", "8D", "9C", "8H"]), 
             None
         );
     }
