@@ -23,6 +23,9 @@
 // <p>The file, <a href="resources/documents/0054_poker.txt">poker.txt</a>, contains one-thousand random hands dealt to two players. Each line of the file contains ten cards (separated by a single space): the first five are Player 1's cards and the last five are Player 2's cards. You can assume that all hands are valid (no invalid characters or repeated cards), each player's hand is in no specific order, and in each hand there is a clear winner.</p>
 // <p>How many hands does Player 1 win?</p>
 
+// NOTE:
+// This is a very overcomplicated solution used to learn about the borrow checker and std.
+
 use std::io::{BufRead, BufReader};
 use std::fs::File;
 use std::cmp::Ordering;
@@ -73,10 +76,6 @@ impl PartialEq for Card {
     fn eq(&self, other: &Self) -> bool {
         self.value == other.value
     }
-}
-
-macro_rules! to_card {
-    ($x:expr) => (Card::new($x.chars().nth(0).unwrap(), $x.chars().nth(1).unwrap()));
 }
 
 //const SUITS: Vec<char> = vec!['H', 'C', 'S', 'D'];
@@ -155,6 +154,9 @@ fn check_player1_win(cards_player1: CardSet, cards_player2: CardSet) -> bool {
         .or_else(|| {player_win_lose_flush(&cards_player1, &cards_player2)} )
         .or_else(|| {player_win_lose_straight(&cards_player1, &cards_player2)} )
         .or_else(|| {player_win_lose_three_of_a_kind(&cards_player1, &cards_player2)} )
+        .or_else(|| {player_win_lose_two_pairs(&cards_player1, &cards_player2)} )
+        .or_else(|| {player_win_lose_one_pair(&cards_player1, &cards_player2)} )
+        .or_else(|| {player_win_lose_heighest_card(&cards_player1, &cards_player2)} )
         .unwrap_or(false)
 }
 
@@ -208,8 +210,8 @@ fn player_win_lose_four_of_a_kind(cards_player1: &CardSet, cards_player2: &CardS
         Some(false)
     }
     else if fok1.is_some() && fok2.is_some() {
-        let hk1 = find_highest_value_card(&fok1.clone().unwrap().0).1;
-        let hk2 = find_highest_value_card(&fok2.clone().unwrap().0).1;
+        let hk1 = find_highest_value_card(&fok1.as_ref().unwrap().0).1;
+        let hk2 = find_highest_value_card(&fok2.as_ref().unwrap().0).1;
 
         if hk1 == hk2 {
             let rest_hk1 = find_highest_value_card(&fok1.unwrap().1).1;
@@ -292,15 +294,12 @@ fn player_win_lose_straight(cards_player1: &CardSet, cards_player2: &CardSet) ->
     let str2 = is_straight(cards_player2);
 
     if str1 && !str2 {
-        println!("str1 here {:?} {:?}", cards_player1, cards_player2);
         Some(true)
     }
     else if !str1 && str2 {
-        println!("str2 here {:?} {:?}", cards_player1, cards_player2);
         Some(false)
     }
     else if str1 && str2 {
-        println!("str1 str2 here {:?} {:?}", cards_player1, cards_player2);
         let hkv1 = find_highest_value_card(cards_player1).1;
         let hkv2 = find_highest_value_card(cards_player2).1;
 
@@ -316,21 +315,15 @@ fn player_win_lose_three_of_a_kind(cards_player1: &CardSet, cards_player2: &Card
     let tok1 = find_n_of_a_kind(3, &cards_player1);
     let tok2 = find_n_of_a_kind(3, &cards_player2);
 
-    println!("here {:?} {:?}", cards_player1, cards_player2);
-
     if tok1.is_some() && tok2.is_none() {
-        println!("tok1 {:?}", tok1.clone().unwrap().0);
         Some(true)
     }
     else if tok1.is_none() && tok2.is_some() {
-        println!("tok2 {:?}", tok2.clone().unwrap().0);
         Some(false)
     }
     else if tok1.is_some() && tok2.is_some() {
-        let hk1 = find_highest_value_card(&tok1.clone().unwrap().0).1;
-        let hk2 = find_highest_value_card(&tok2.clone().unwrap().0).1;
-        println!("toksome1 {:?}, hk {}", tok1.clone().unwrap().0, hk1);
-        println!("toksome2 {:?}, hk {}", tok2.clone().unwrap().0, hk2);
+        let hk1 = find_highest_value_card(&tok1.as_ref().unwrap().0).1;
+        let hk2 = find_highest_value_card(&tok2.as_ref().unwrap().0).1;
 
         if hk1 != hk2 {
             Some(hk1 > hk2)
@@ -340,8 +333,6 @@ fn player_win_lose_three_of_a_kind(cards_player1: &CardSet, cards_player2: &Card
             let rest2 = &mut tok2.unwrap().1.clone();
             rest1.sort();
             rest2.sort();
-            println!("rest1 {:?}", rest1);
-            println!("rest2 {:?}", rest2);
 
             for i in (0..2).rev() {
                 let c1 = rest1.iter().nth(i).unwrap();
@@ -359,6 +350,104 @@ fn player_win_lose_three_of_a_kind(cards_player1: &CardSet, cards_player2: &Card
     else {
         None
     }
+}
+
+fn player_win_lose_two_pairs(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    //  7. two pairs, value of pairs, value of other card
+    let tp1 = get_two_pairs(&cards_player1);
+    let tp2 = get_two_pairs(&cards_player2);
+
+    if tp1.is_some() && tp2.is_none() {
+        Some(true)
+    }
+    else if tp1.is_none() && tp2.is_some() {
+        Some(false)
+    }
+    else if tp1.is_some() && tp2.is_some() {
+        let val_1stpair1 = get_value_of_card(tp1.as_ref().unwrap().0.first().unwrap());
+        let val_1stpair2 = get_value_of_card(tp2.as_ref().unwrap().0.first().unwrap());
+
+        if val_1stpair1 > val_1stpair2 {
+            return Some(true);
+        }
+        else if val_1stpair1 < val_1stpair2 {
+            return Some(false);
+        }
+        else {
+            let val_2ndpair1 = get_value_of_card(tp1.as_ref().unwrap().1.first().unwrap());
+            let val_2ndpair2 = get_value_of_card(tp2.as_ref().unwrap().1.first().unwrap());
+
+            if val_2ndpair1 > val_2ndpair2 {
+                return Some(true);
+            }
+            else if val_2ndpair1 < val_2ndpair2 {
+                return Some(false);
+            }
+            else {
+                let valrest1 = get_value_of_card(&tp1.as_ref().unwrap().2);
+                let valrest2 = get_value_of_card(&tp2.as_ref().unwrap().2);
+
+                return Some(valrest1 > valrest2);
+            }
+        }
+    }
+    else {
+        None
+    }
+}
+
+fn player_win_lose_one_pair(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    //  8. one pair, value of pair, values of other cards
+    let op1 = find_n_of_a_kind(2, &cards_player1);
+    let op2 = find_n_of_a_kind(2, &cards_player2);
+
+    if op1.is_some() && op2.is_none() {
+        Some(true)
+    }
+    else if op1.is_none() && op2.is_some() {
+        Some(false)
+    }
+    else if op1.is_some() && op2.is_some() {
+        let valpair1 = get_value_of_card(op1.as_ref().unwrap().0.first().unwrap());
+        let valpair2 = get_value_of_card(op2.as_ref().unwrap().0.first().unwrap());
+
+        if valpair1 > valpair2 {
+            Some(true)
+        }
+        else if valpair1 < valpair2 {
+            Some(false)
+        }
+        else {
+            // check highest cards
+            player_win_lose_heighest_card(&op1.as_ref().unwrap().1, &op2.as_ref().unwrap().1)
+        }
+    }
+    else {
+        None
+    }
+}
+
+fn player_win_lose_heighest_card(cards_player1: &CardSet, cards_player2: &CardSet) -> Option<bool> {
+    let mut sort1 = cards_player1.clone();
+    let mut sort2 = cards_player2.clone();
+    sort1.sort();
+    sort1.reverse();
+    sort2.sort();
+    sort2.reverse();
+    
+    for i in sort1.iter().zip(sort2.iter()) {
+        let val1 = get_value_of_card(i.0);
+        let val2 = get_value_of_card(i.1);
+
+        if val1 > val2 {
+            return Some(true);
+        }
+        else if val1 < val2 {
+            return Some(false);
+        }
+    }
+
+    None
 }
 
 
@@ -432,7 +521,7 @@ fn find_n_of_a_kind(n: usize, cards: &CardSet) -> Option<(CardSet, CardSet)> {
                 |mut acc, card| {if val == card.value {acc.0.push(card.clone())} else {acc.1.push(card.clone())} acc}
             );
             
-        if cards_by_val.0.len() >= n {
+        if cards_by_val.0.len() == n {
             return Some(cards_by_val);
         }
     }
@@ -443,9 +532,26 @@ fn find_n_of_a_kind(n: usize, cards: &CardSet) -> Option<(CardSet, CardSet)> {
 fn get_full_house(cards: &CardSet) -> Option<(CardSet, CardSet)> {
     let three_of_a_kind = find_n_of_a_kind(3, cards);
     if three_of_a_kind.is_some() {
-        let pair = find_n_of_a_kind(2, &three_of_a_kind.clone().unwrap().1);
+        let pair = find_n_of_a_kind(2, &three_of_a_kind.as_ref().unwrap().1);
         if pair.is_some() {
             return three_of_a_kind;
+        }
+    }
+
+    None
+}
+
+fn get_two_pairs(cards: &CardSet) -> Option<(CardSet, CardSet, Card)> {
+    let pair1 = find_n_of_a_kind(2, &cards);
+    if pair1.is_some() {
+        let pair2 = find_n_of_a_kind(2, &pair1.as_ref().unwrap().1);
+        if pair2.is_some() {
+            if get_value_of_card(pair1.as_ref().unwrap().0.first().as_ref().unwrap()) < get_value_of_card(pair2.as_ref().unwrap().0.first().as_ref().unwrap()) {
+                return Some((pair2.clone().unwrap().0, pair1.unwrap().0, *pair2.unwrap().1.first().unwrap()))
+            }
+            else {
+                return Some((pair1.unwrap().0, pair2.clone().unwrap().0, *pair2.unwrap().1.first().unwrap()))
+            }
         }
     }
 
@@ -468,6 +574,12 @@ fn get_flush(cards: &CardSet) -> Option<CardSet> {
 macro_rules! vec_of_cards {
     ($($x:expr),*) => (vec![$(Card::new($x.chars().nth(0).unwrap(), $x.chars().nth(1).unwrap())),*]);
 }
+
+#[cfg(test)]
+macro_rules! to_card {
+    ($x:expr) => (Card::new($x.chars().nth(0).unwrap(), $x.chars().nth(1).unwrap()));
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -520,20 +632,27 @@ mod tests {
         assert_eq!(check_player1_win(vec_of_cards!["2C", "3D", "5C", "6H", "5C"], vec_of_cards!["8C", "8H", "8S", "8D", "7C"]), false);
         assert_eq!(check_player1_win(vec_of_cards!["6H", "7H", "TH", "9D", "8S"], vec_of_cards!["2C", "3D", "4H", "6H", "5C"]), true);
         // Three of a Kind
-
         assert_eq!(check_player1_win(vec_of_cards!["3C", "4H", "3S", "3D", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
         assert_eq!(check_player1_win(vec_of_cards!["3C", "4H", "3S", "3D", "7C"], vec_of_cards!["8D", "2S", "8C", "8H", "4S"]), false);
         assert_eq!(check_player1_win(vec_of_cards!["2C", "AH", "AS", "AD", "7C"], vec_of_cards!["8D", "2S", "8C", "8H", "4S"]), true);
         assert_eq!(check_player1_win(vec_of_cards!["8C", "5H", "8S", "8D", "7C"], vec_of_cards!["8D", "7S", "8C", "8H", "4S"]), true);
         assert_eq!(check_player1_win(vec_of_cards!["8C", "2H", "8S", "8D", "4C"], vec_of_cards!["8D", "8S", "2C", "8H", "4S"]), false);
         assert_eq!(check_player1_win(vec_of_cards!["9C", "8H", "8S", "8D", "2C"], vec_of_cards!["8D", "AS", "8C", "8H", "4S"]), false);
-        // assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "QD", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
-        // // Two Pairs
-        // assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "5D", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        // Two Pairs
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "4H", "3S", "4D", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "4H", "3S", "4D", "7C"], vec_of_cards!["3C", "6S", "4C", "4H", "3S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "4H", "3S", "4D", "7C"], vec_of_cards!["3C", "6S", "4C", "4H", "6S"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["3C", "AH", "3S", "AD", "7C"], vec_of_cards!["AC", "6S", "4C", "4H", "AS"]), false);
         // // One Pair
-        // assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "AD", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "AD", "7C"], vec_of_cards!["8C", "TS", "KC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "AD", "7C"], vec_of_cards!["8C", "TS", "TC", "9H", "4S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "5S", "AD", "7C"], vec_of_cards!["8C", "QS", "TC", "QH", "AS"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "JS", "AD", "7C"], vec_of_cards!["8C", "QS", "TC", "QH", "AS"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "QH", "JS", "AD", "7C"], vec_of_cards!["5C", "JS", "TC", "QH", "AS"]), true);
         // // High Card
-        // assert_eq!(check_player1_win(vec_of_cards!["QC", "3H", "5S", "2D", "7C"], vec_of_cards!["8C", "TS", "4C", "9H", "2S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "3H", "5S", "2D", "7C"], vec_of_cards!["8C", "TS", "4C", "9H", "2S"]), true);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "3H", "5S", "2D", "7C"], vec_of_cards!["8C", "TS", "QC", "9H", "2S"]), false);
+        assert_eq!(check_player1_win(vec_of_cards!["QC", "3H", "9S", "TD", "8C"], vec_of_cards!["8C", "TS", "QC", "9H", "2S"]), true);
     }
 
     #[test]
@@ -588,7 +707,7 @@ mod tests {
         );
         assert_eq!(
             find_n_of_a_kind(2, &vec_of_cards!["8C", "8S", "8D", "9C", "8H"]), 
-            Some((vec_of_cards!["8C", "8S", "8D", "8H"], vec_of_cards!["9C"]))
+            None
         );
         assert_eq!(
             find_n_of_a_kind(4, &vec_of_cards!["8C", "2S", "8D", "9C", "8H"]), 
@@ -615,6 +734,22 @@ mod tests {
             None
         );
     }
+
+    #[test]
+    fn test_get_two_pairs() {
+        assert_eq!(
+            get_two_pairs(&vec_of_cards!["8C", "8S", "3D", "9C", "9H"]), 
+            Some((vec_of_cards!["9C", "9H"], vec_of_cards!["8C", "8S"], to_card!["3D"]))
+        );
+        assert_eq!(
+            get_two_pairs(&vec_of_cards!["AC", "8S", "7D", "7C", "AH"]), 
+            Some((vec_of_cards!["AC", "AH"], vec_of_cards!["7D", "7C"], to_card!["8S"]))
+        );
+        assert_eq!(
+            get_two_pairs(&vec_of_cards!["AC", "8S", "AD", "7C", "AH"]), 
+            None
+        );
+    }
 }
 
-// 
+// Player 1 wins: 376
