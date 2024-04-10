@@ -31,8 +31,7 @@ fn count_lychrel_up_to(n: u32) -> u32 {
 fn is_lychrel_number(mut number: u128) -> bool {
     for _i in 0..MAX_STEPS {
         let dig = split_into_digits(number);
-        let mut rev_dig: Digits = dig.clone();
-        rev_dig.reverse();
+        let rev_dig: Digits = dig.iter().rev().cloned().collect();
         let reverse = combine_from_digits(&rev_dig);
 
         number = number + reverse;
