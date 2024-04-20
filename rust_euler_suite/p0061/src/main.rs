@@ -54,7 +54,8 @@ fn main() {
     cyclic_polygonals.iter()
         .for_each(|x| println!("{:?}", x));
 
-    let four_digit_cyclic_gonals = extend_current_cyclic_gonals_list(&CyclicPolygonalList::new(), &cyclic_polygonals);
+    let cyclic_polygonals_refs: Vec<&CyclicPolygonalList> = cyclic_polygonals.iter().collect();
+    let four_digit_cyclic_gonals = extend_current_cyclic_gonals_list(&CyclicPolygonalList::new(), &cyclic_polygonals_refs);
 
     if four_digit_cyclic_gonals.is_some() {
         println!("Found 6 cyclic polygonals: {:?}", four_digit_cyclic_gonals.as_ref().unwrap());
@@ -96,7 +97,7 @@ fn get_non_cyclic_removed_polygonials(four_digit_polygonals: CyclicPolygonalList
 }
 
 
-fn extend_current_cyclic_gonals_list(current_cyclic_gonals: &CyclicPolygonalList, remaining_cyclic_polygonals: &CyclicPolygonalLists) 
+fn extend_current_cyclic_gonals_list(current_cyclic_gonals: &CyclicPolygonalList, remaining_cyclic_polygonals: &Vec<&CyclicPolygonalList>) 
     -> Option<CyclicPolygonalList>
 {
     if current_cyclic_gonals.len() == 6 {
@@ -109,14 +110,13 @@ fn extend_current_cyclic_gonals_list(current_cyclic_gonals: &CyclicPolygonalList
     }
     else {
         for (nlist, current_list) in remaining_cyclic_polygonals.iter().enumerate() {
-            let lists_without_current: CyclicPolygonalLists = remaining_cyclic_polygonals
+            let lists_without_current = remaining_cyclic_polygonals
                 .iter()
                 .enumerate()
                 .filter(|(nwo, _)| *nwo != nlist)
-                .map(|(_,l)| l)
-                .cloned()
+                .map(|(_,l)| *l)
                 .collect();
-            for num_check in current_list {
+            for num_check in *current_list {
                 if current_cyclic_gonals.is_empty() || check_four_digit_cyclic(*current_cyclic_gonals.last().unwrap(), *num_check) {
                     let mut new_gonals = current_cyclic_gonals.clone();
                     new_gonals.push(*num_check);
