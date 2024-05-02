@@ -45,26 +45,54 @@
 
 #[derive(PartialEq,Debug)]
 struct ContinuedFractionRepresentation {
-    pub starting_number: u32,
-    pub periodic_part: Vec<u32>,
+    pub starting_number: i64,
+    pub periodic_part: Vec<i64>,
+}
+
+impl ContinuedFractionRepresentation {
+    pub fn period_length(&self) -> usize {
+        self.periodic_part.len()
+    }
+}
+
+
+#[derive(PartialEq,Debug)]
+struct PRnPxOy {
+    // expression of the form p(sqrt(n)+x)/y
+    p: i64,
+    n: i64,
+    x: i64,
+    y: i64,
+}
+
+impl PRnPxOy {
+    pub fn floor(&self) -> i64 {
+        // returns floor( p(sqrt(n)+x)/y )
+        // finds largest a such that (ay/p-x)^2 <= n
+        0
+    }
+
+    pub fn reciprocal(&self) -> PRnPxOy {
+        // assumes that the number is in (0,1)
+        PRnPxOy{p: 1, n: 1, x: 0, y: 1}
+    }
+
+    pub fn cancelled(&self) -> PRnPxOy {
+        // assumes that the number is in (0,1)
+        PRnPxOy{p: 1, n: 1, x: 0, y: 1}
+    }
+
+    
 }
 
 fn main() {
 }
 
-fn get_continued_fraction_representation_for_square_root_of(number: u32) -> ContinuedFractionRepresentation {
+fn get_continued_fraction_representation_for_square_root_of(number: i64) -> ContinuedFractionRepresentation {
     ContinuedFractionRepresentation{starting_number: 0, periodic_part: vec![]}
 }
 
-fn get_period_length(cf: &ContinuedFractionRepresentation) -> usize {
-    cf.periodic_part.len()
-}
 
-fn get_floor_of_root_n_plus_x_over_y(n: u32, x: i32, y: i32) -> i32 {
-    // returns floor( (sqrt(n)+x)/y )
-    // finds largest a such that (ay-x)^2 <= n
-    0
-}
 
 
 #[cfg(test)]
@@ -88,21 +116,34 @@ mod tests {
     }
 
     #[test]
-    fn test_get_period_length() {
-        assert_eq!(get_period_length(&ContinuedFractionRepresentation{
+    fn test_period_length() {
+        assert_eq!(ContinuedFractionRepresentation{
             starting_number: 2, 
-            periodic_part: vec![]}), 0);
-        assert_eq!(get_period_length(&ContinuedFractionRepresentation{
+            periodic_part: vec![]}.period_length(), 0);
+        assert_eq!(ContinuedFractionRepresentation{
             starting_number: 1, 
-            periodic_part: vec![2]}), 1);
-        assert_eq!(get_period_length(&ContinuedFractionRepresentation{
+            periodic_part: vec![2]}.period_length(), 1);
+        assert_eq!(ContinuedFractionRepresentation{
             starting_number: 2, 
-            periodic_part: vec![2, 4]}), 2);
+            periodic_part: vec![2, 4]}.period_length(), 2);
     }
 
     #[test]
-    fn test_get_floor_of_root_n_plus_x_over_y() {
-        assert_eq!(get_floor_of_root_n_plus_x_over_y(16, 0, 1), 4);
+    fn test_floor() {
+        assert_eq!(PRnPxOy{p: 1, n: 16, x: 0, y: 1}.floor(), 4);
+        assert_eq!(PRnPxOy{p: 1, n: 23, x: 0, y: 1}.floor(), 4);
+        assert_eq!(PRnPxOy{p: 1, n: 23, x: 0, y: 1}.floor(), 4);
+    }
+
+    #[test]
+    fn test_reciprocal() {
+        assert_eq!(PRnPxOy{p: 1, n: 23, x: -3, y: 7}.reciprocal(), PRnPxOy{p: 7, n: 23, x: 3, y: 14});
+    }
+
+    #[test]
+    fn test_cancelled() {
+        assert_eq!(PRnPxOy{p: 2, n: 23, x: -3, y: 6}.cancelled(), PRnPxOy{p: 1, n: 23, x: -3, y: 3});
+        assert_eq!(PRnPxOy{p: 4, n: 23, x: -3, y: 6}.cancelled(), PRnPxOy{p: 2, n: 23, x: -3, y: 3});
     }
 }
 
