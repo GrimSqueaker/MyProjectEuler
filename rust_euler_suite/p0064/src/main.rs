@@ -42,6 +42,7 @@
 // <p>How many continued fractions for $N \le 10\,000$ have an odd period?</p>
 // 
 
+use std::fmt;
 
 #[derive(PartialEq,Debug)]
 struct ContinuedFractionRepresentation {
@@ -56,43 +57,120 @@ impl ContinuedFractionRepresentation {
 }
 
 
-#[derive(PartialEq,Debug)]
-struct PRnPxOy {
+#[derive(PartialEq,Debug,Clone)]
+struct RootExpression {
     // expression of the form p(sqrt(n)+x)/y
+    // NOTE: it can be shown that all the root expressions that arise in the
+    //       continued fraction expansion of a square root can be cancelled to have p=1
     p: i64,
     n: i64,
     x: i64,
     y: i64,
 }
 
-impl PRnPxOy {
+impl fmt::Display for RootExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}(sqrt({})+{})/{}", self.p, self.n, self.x, self.y)
+    }
+}
+
+impl RootExpression {
     pub fn floor(&self) -> i64 {
         // returns floor( p(sqrt(n)+x)/y )
-        // finds largest a such that (ay/p-x)^2 <= n
-        0
+        // finds largest f such that (fy/p-x)^2 <= n
+        let mut f = 0i64;
+
+        loop {
+            let check = (f+1)*self.y/self.p - self.x;
+            if check*check <= self.n {
+                f += 1;
+            }
+            else {
+                break;
+            }
+        }
+
+        f
     }
 
-    pub fn reciprocal(&self) -> PRnPxOy {
-        // assumes that the number is in (0,1)
-        PRnPxOy{p: 1, n: 1, x: 0, y: 1}
+    pub fn reciprocal(&self) -> RootExpression {
+        RootExpression{p: self.y, n: self.n, x: -self.x, y: self.p*(self.n-self.x*self.x)}
     }
 
-    pub fn cancelled(&self) -> PRnPxOy {
-        // assumes that the number is in (0,1)
-        PRnPxOy{p: 1, n: 1, x: 0, y: 1}
-    }
+    pub fn cancelled(&self) -> RootExpression {
+        let mut cancel = self.clone();
+        if cancel.p < 0 && cancel.y < 0 {
+            cancel.p = -cancel.p;
+            cancel.y = -cancel.y;
+        }
 
-    
+        let min = if cancel.p<cancel.y {cancel.p} else {cancel.y};
+
+        for gcd in (1..=min).rev() {
+            if (cancel.p%gcd == 0) && (cancel.y%gcd==0) {
+                cancel.p = cancel.p/gcd;
+                cancel.y = cancel.y/gcd;
+                break;
+            }
+        }
+
+        cancel
+    }
 }
 
 fn main() {
+    let mut odd_period = 0;
+    for n in 2..=10000 {
+        let cfr = get_continued_fraction_representation_for_square_root_of(n);
+        if cfr.period_length() % 2 == 1 {
+            odd_period += 1;
+        }
+    }
+
+    println!("The number of continued fraction expansions of squares <= 10000 is {}", odd_period)
 }
 
 fn get_continued_fraction_representation_for_square_root_of(number: i64) -> ContinuedFractionRepresentation {
-    ContinuedFractionRepresentation{starting_number: 0, periodic_part: vec![]}
+    let starting_number = RootExpression{p: 1, n: number, x: 0, y: 1}.floor();
+
+    if starting_number*starting_number == number {
+        // if there is no remainder then number is a square -> return
+        ContinuedFractionRepresentation{starting_number: starting_number, periodic_part: vec![]}
+    }
+    else {
+        let initial_expr = RootExpression{p: 1, n: number, x: -starting_number, y: 1}.reciprocal().cancelled();
+
+        // recursively compute the root expressions and integer parts (floors) until
+        // - the first root expression repeats -> periodicity
+        let periodic_part = get_periodic_part_for_root_expression(&initial_expr, &initial_expr);
+
+        ContinuedFractionRepresentation{starting_number, periodic_part}
+    }
 }
 
+fn get_periodic_part_for_root_expression(initial_expr: &RootExpression, current_expr: &RootExpression) -> Vec<i64> {
+    assert!(current_expr.p == 1);
 
+    let integer_part = current_expr.floor();
+    let next_expr = RootExpression{
+        p: current_expr.p,
+        n: current_expr.n,
+        x: current_expr.x - integer_part*current_expr.y,
+        y: current_expr.y
+    }.reciprocal().cancelled();
+
+    if *initial_expr == next_expr {
+        // check for periodicity
+        return vec![integer_part]
+    }
+    else {
+        let mut periodic_part = get_periodic_part_for_root_expression(initial_expr, &next_expr);
+
+        periodic_part.insert(0, integer_part);
+
+        periodic_part
+    }
+}
 
 
 #[cfg(test)]
@@ -130,20 +208,22 @@ mod tests {
 
     #[test]
     fn test_floor() {
-        assert_eq!(PRnPxOy{p: 1, n: 16, x: 0, y: 1}.floor(), 4);
-        assert_eq!(PRnPxOy{p: 1, n: 23, x: 0, y: 1}.floor(), 4);
-        assert_eq!(PRnPxOy{p: 1, n: 23, x: 0, y: 1}.floor(), 4);
+        assert_eq!(RootExpression{p: 1, n: 16, x: -4, y: 1}.floor(), 0);
+        assert_eq!(RootExpression{p: 1, n: 16, x: 0, y: 1}.floor(), 4);
+        assert_eq!(RootExpression{p: 1, n: 23, x: 0, y: 1}.floor(), 4);
     }
 
     #[test]
     fn test_reciprocal() {
-        assert_eq!(PRnPxOy{p: 1, n: 23, x: -3, y: 7}.reciprocal(), PRnPxOy{p: 7, n: 23, x: 3, y: 14});
+        assert_eq!(RootExpression{p: 1, n: 23, x: -3, y: 7}.reciprocal(), RootExpression{p: 7, n: 23, x: 3, y: 14});
     }
 
     #[test]
     fn test_cancelled() {
-        assert_eq!(PRnPxOy{p: 2, n: 23, x: -3, y: 6}.cancelled(), PRnPxOy{p: 1, n: 23, x: -3, y: 3});
-        assert_eq!(PRnPxOy{p: 4, n: 23, x: -3, y: 6}.cancelled(), PRnPxOy{p: 2, n: 23, x: -3, y: 3});
+        assert_eq!(RootExpression{p: 2, n: 23, x: -3, y: 6}.cancelled(), RootExpression{p: 1, n: 23, x: -3, y: 3});
+        assert_eq!(RootExpression{p: 4, n: 23, x: -3, y: 6}.cancelled(), RootExpression{p: 2, n: 23, x: -3, y: 3});
+        assert_eq!(RootExpression{p: -4, n: 23, x: -3, y: -6}.cancelled(), RootExpression{p: 2, n: 23, x: -3, y: 3});
     }
 }
 
+// The number of continued fraction expansions of squares <= 10000 is 1322
