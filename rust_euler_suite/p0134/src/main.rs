@@ -165,3 +165,5 @@ mod tests {
         assert_eq!(get_smallest_p1_digits_p2_divisible(5, 7), 35);
     }
 }
+
+// Sum of all S: 18613426663617118
