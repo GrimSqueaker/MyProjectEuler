@@ -6,10 +6,6 @@
 
 use std::cmp;
 use primes::{Sieve, PrimeSet};
-use lib_prime_functions::concatenating_primes::is_concatenating_prime_for_vec;
-// use sorted_list::SortedList;
-
-type ConsecutivePrimes = (u64, u64);
 
 fn main() {
     const MAX_PRIME: u64 = 1000000;
@@ -21,16 +17,30 @@ fn main() {
     let mut last = primeit.next().unwrap();
     let mut next = primeit.next().unwrap();
 
+    let mut sum = 0u128;
 
-    while last < MAX_PRIME {
+    while next < MAX_PRIME {
         last = next;
         next = primeit.next().unwrap();
-        println!("pair: {}, {}", last, next);
+        let temp = get_smallest_p1_digits_p2_divisible(last, next);
+        sum += temp as u128;
+        println!("pair: {}, {} -> {}", last, next, temp);
     }
+
+    println!("Sum of all S: {}", sum);
 }
 
 fn get_smallest_p1_digits_p2_divisible(p1: u64, p2: u64) -> u64 {
-    0
+    let mut check = 0u64;
+    let digits = get_num_digits(p1);
+
+    loop {
+        check += p2;
+
+        if p1 == get_last_n_digits(digits, check) {
+            return check;
+        }
+    }
 }
 
 fn get_num_digits(mut num: u64) -> u64 {
@@ -82,7 +92,7 @@ fn get_n_th_digit(mut n: u64, mut num: u64) -> u64 {
     num % 10
 }
 
-fn set_n_th_digit(mut n: u64, mut num: u64, to: u64) -> u64 {
+fn set_n_th_digit(n: u64, mut num: u64, to: u64) -> u64 {
     let mut exp = 1;
     let len = cmp::max(get_num_digits(num), n+1);
     let mut out = 0u64;
