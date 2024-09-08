@@ -1,5 +1,5 @@
 [package]
-name = "p0063"
+name = "p0168"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,3 +7,8 @@ edition = "2021"
 
 [dependencies]
 lib_number_functions = { path = "../number_functions" }
+num-bigint = "0.4.4"
+num-modular = "0.6.1"
+num-traits = "0.2.19"
+
+[build-dependencies]

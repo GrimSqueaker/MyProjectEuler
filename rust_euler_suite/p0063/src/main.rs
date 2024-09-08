@@ -13,6 +13,8 @@
 //       <=> ln(10)/(ln(10)-ln(9)) < x
 //       <=>               ~21.854 < x
 
+use lib_number_functions::number_functions::get_number_of_digits;
+
 fn main() {
     let mut num_n_digits_n_power = 0;
 
@@ -29,28 +31,10 @@ fn main() {
     println!("Solution: {}", num_n_digits_n_power);
 }
 
-fn get_number_of_digits(mut num: u128) -> u64 {
-    let mut num_digits = 0;
-
-    while num > 0 {
-        num_digits += 1;
-        num /= 10;
-    }
-
-    num_digits
-}
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_get_number_of_digits() {
-        assert_eq!(get_number_of_digits(10), 2);
-        assert_eq!(get_number_of_digits(0), 0);
-        assert_eq!(get_number_of_digits(9876), 4);
-    }
 }
 
 // 1^1=1 has 1 digits

@@ -9,5 +9,6 @@ edition = "2021"
 primes = "0.3.0"
 sorted-list = "0.2.0"
 lib_prime_functions = { path = "../prime_functions" }
+lib_number_functions = { path = "../number_functions" }
 
 [build-dependencies]
